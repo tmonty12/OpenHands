@@ -13,9 +13,9 @@ with warnings.catch_warnings():
     warnings.simplefilter('ignore')
     import litellm
 
+
 from litellm import ChatCompletionMessageToolCall, ModelInfo, PromptTokensDetails
 from litellm import Message as LiteLLMMessage
-from litellm import completion as litellm_completion
 from litellm import completion_cost as litellm_completion_cost
 from litellm.exceptions import (
     APIConnectionError,
@@ -26,6 +26,8 @@ from litellm.exceptions import (
 )
 from litellm.types.utils import CostPerToken, ModelResponse, Usage
 from litellm.utils import create_pretrained_tokenizer
+from openinference.instrumentation.litellm import LiteLLMInstrumentor
+from phoenix.otel import register
 
 from openhands.core.logger import openhands_logger as logger
 from openhands.core.message import Message
@@ -80,6 +82,12 @@ REASONING_EFFORT_SUPPORTED_MODELS = [
 MODELS_WITHOUT_STOP_WORDS = [
     'o1-mini',
 ]
+
+tracer_provider = register(
+    endpoint='http://127.0.0.1:6006/v1/traces',
+    project_name='my-llm-app',
+)
+LiteLLMInstrumentor().instrument(tracer_provider=tracer_provider, verbose=True)
 
 
 class LLM(RetryMixin, DebugMixin):
@@ -139,7 +147,7 @@ class LLM(RetryMixin, DebugMixin):
 
         # set up the completion function
         self._completion = partial(
-            litellm_completion,
+            litellm.completion,
             model=self.config.model,
             api_key=self.config.api_key.get_secret_value()
             if self.config.api_key
@@ -536,6 +544,7 @@ class LLM(RetryMixin, DebugMixin):
 
         Args:
             messages (list): A list of messages, either as a list of dicts or as a list of Message objects.
+
         Returns:
             int: The number of tokens.
         """
